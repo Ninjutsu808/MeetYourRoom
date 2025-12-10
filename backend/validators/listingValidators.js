@@ -14,7 +14,7 @@ export const createListingValidation = [
   body('genderPreference').optional().isIn(genderPreferences).withMessage('Invalid gender preference'),
   body('latitude').optional({ checkFalsy: true }).isFloat().withMessage('Latitude must be a number'),
   body('longitude').optional({ checkFalsy: true }).isFloat().withMessage('Longitude must be a number'),
-  body('amenities').optional().isArray().withMessage('Amenities must be an array')
+  body('amenities').optional()
 ];
 
 export const updateListingValidation = [
