@@ -1,91 +1,94 @@
 import mongoose from 'mongoose';
+import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
-import User from '../models/User.js';
 import AppError from '../utils/AppError.js';
 
-export const getConversationPartners = async (userId) => {
-  const conversations = await Message.aggregate([
-    {
-      $match: {
-        $or: [
-          { senderId: new mongoose.Types.ObjectId(userId) },
-          { receiverId: new mongoose.Types.ObjectId(userId) }
-        ]
-      }
-    },
-    {
-      $addFields: {
-        otherUser: {
-          $cond: [
-            { $eq: ['$senderId', new mongoose.Types.ObjectId(userId)] },
-            '$receiverId',
-            '$senderId'
-          ]
-        }
-      }
-    },
-    {
-      $sort: { timestamp: -1 }
-    },
-    {
-      $group: {
-        _id: '$otherUser',
-        lastMessage: { $first: '$message' },
-        lastTimestamp: { $first: '$timestamp' }
-      }
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: '_id',
-        foreignField: '_id',
-        as: 'user'
-      }
-    },
-    {
-      $unwind: '$user'
-    },
-    {
-      $project: {
-        userId: '$_id',
-        name: '$user.name',
-        profilePic: '$user.profilePic',
-        lastMessage: 1,
-        lastTimestamp: 1
-      }
-    },
-    {
-      $sort: { lastTimestamp: -1 }
-    }
-  ]);
+const sortParticipantIds = (ids) =>
+  ids.map((id) => new mongoose.Types.ObjectId(id)).sort((a, b) => a.toString().localeCompare(b.toString()));
 
-  return conversations;
+export const startConversation = async (userId, otherUserId) => {
+  if (userId.toString() === otherUserId.toString()) {
+    throw new AppError('Cannot start a conversation with yourself', 400);
+  }
+
+  const participants = sortParticipantIds([userId, otherUserId]);
+
+  const conversation = await Conversation.findOneAndUpdate(
+    { participants },
+    { $setOnInsert: { participants, lastMessage: '' } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return conversation;
 };
 
-export const getConversation = async (userId, partnerId) => {
-  const messages = await Message.find({
-    $or: [
-      { senderId: userId, receiverId: partnerId },
-      { senderId: partnerId, receiverId: userId }
-    ]
-  })
-    .sort({ timestamp: 1 })
+export const getUserConversations = async (userId) => {
+  const conversations = await Conversation.find({ participants: userId })
+    .populate('participants', 'name profilePic email phone socialLinks')
+    .sort({ updatedAt: -1 })
     .lean();
 
-  return messages;
+  return conversations.map((conversation) => {
+    const otherParticipant = conversation.participants.find(
+      (participant) => participant._id.toString() !== userId.toString()
+    );
+
+    return {
+      _id: conversation._id,
+      lastMessage: conversation.lastMessage,
+      updatedAt: conversation.updatedAt,
+      participant: otherParticipant
+    };
+  });
 };
 
-export const sendMessage = async (senderId, receiverId, text) => {
-  const receiver = await User.findById(receiverId);
-  if (!receiver) {
-    throw new AppError('Receiver not found', 404);
+export const getConversationById = async (conversationId, userId) => {
+  const conversation = await Conversation.findById(conversationId)
+    .populate('participants', 'name profilePic email phone socialLinks')
+    .lean();
+
+  if (!conversation) {
+    throw new AppError('Conversation not found', 404);
+  }
+
+  const isParticipant = conversation.participants.some(
+    (participant) => participant._id.toString() === userId.toString()
+  );
+
+  if (!isParticipant) {
+    throw new AppError('Not authorized to view this conversation', 403);
+  }
+
+  const messages = await Message.find({ conversationId }).sort({ timestamp: 1 }).lean();
+
+  return {
+    conversation,
+    messages
+  };
+};
+
+export const sendMessage = async ({ conversationId, senderId, receiverId, text }) => {
+  const conversation = await Conversation.findById(conversationId);
+
+  if (!conversation) {
+    throw new AppError('Conversation not found', 404);
+  }
+
+  const participantIds = conversation.participants.map((participant) => participant.toString());
+
+  if (!participantIds.includes(senderId.toString()) || !participantIds.includes(receiverId.toString())) {
+    throw new AppError('Participants mismatch for this conversation', 403);
   }
 
   const message = await Message.create({
+    conversationId,
     senderId,
     receiverId,
-    message: text
+    text
   });
+
+  conversation.lastMessage = text;
+  await conversation.save();
 
   return message;
 };

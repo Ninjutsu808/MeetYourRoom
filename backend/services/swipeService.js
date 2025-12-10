@@ -41,7 +41,7 @@ export const likePost = async (userId, postId) => {
 
   const isMatch = await checkMutualLike(userId, post.userId?._id);
 
-  return { swipe, isMatch, post };
+  return { swipe, isMatch, postOwnerId: post.userId?._id, post };
 };
 
 export const dislikePost = async (userId, postId) => {

@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import swipeRoutes from './routes/swipeRoutes.js';
+import listingRoutes from './routes/listingRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
@@ -22,7 +23,7 @@ connectDB();
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/listings', listingRoutes);
 app.use('/api/swipe', swipeRoutes);
 
 app.get('/', (_req, res) => {

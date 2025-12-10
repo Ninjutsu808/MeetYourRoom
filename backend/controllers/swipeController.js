@@ -4,14 +4,23 @@ import {
   dislikePost,
   getMatches
 } from '../services/swipeService.js';
+import { startConversation } from '../services/messageService.js';
 
 export const like = catchAsync(async (req, res) => {
   const { postId } = req.params;
   const result = await likePost(req.user._id, postId);
+
+  let conversationId = null;
+  if (result.postOwnerId) {
+    const conversation = await startConversation(req.user._id, result.postOwnerId);
+    conversationId = conversation?._id;
+  }
+
   res.json({
     swipe: result.swipe,
     isMatch: result.isMatch,
-    post: result.post
+    post: result.post,
+    conversationId
   });
 });
 
