@@ -12,8 +12,19 @@ export const registerUser = async (data) => {
 
   const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
 
+  // Parse socialLinks if it's a string
+  const userData = { ...data };
+  if (typeof userData.socialLinks === 'string') {
+    try {
+      userData.socialLinks = JSON.parse(userData.socialLinks);
+    } catch (e) {
+      // If parsing fails, set to empty object
+      userData.socialLinks = { instagram: '', linkedin: '' };
+    }
+  }
+
   const user = await User.create({
-    ...data,
+    ...userData,
     password: hashedPassword
   });
 

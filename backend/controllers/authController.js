@@ -40,3 +40,7 @@ export const login = catchAsync(async (req, res) => {
     user
   });
 });
+
+export const me = catchAsync(async (req, res) => {
+  res.json(req.user);
+});
